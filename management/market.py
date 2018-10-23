@@ -1,36 +1,47 @@
+import sqlite3
 import random
 import config
 import json
 
-def jget(variable):
-    """Return what value the given variable is set to. Note that the parameter variable needs to be a string.
-    
-    Keyword arguments:
-    variable -> the variable in dynamic.json that should be changed."""
-    
+conn = sqlite3.connect(config.general_database)
+c = conn.cursor()
+
+def give_item(user_id,item,amount):
+    item = __item_to_int(item)
+
+    if item == 0:
+        raise ValueError("Money is to be changed using the `self.money` argument.")
+
+    c.execute("SELECT * FROM 'inventory' WHERE id=? AND item=?",(user_id,item))
+
+    if c.fetchone() == None:
+        c.execute("INSERT INTO 'inventory'('id','item','amount') VALUES (?,?,?);",(user_id,item,amount))
+    else:
+        c.execute("UPDATE 'inventory' SET amount = amount + ? WHERE item=? AND id=?",(amount,item,user_id))
+    c.execute("DELETE FROM 'inventory' WHERE amount =0")
+    conn.commit()
+
+def take_item(user_id,item,amount):
+    give_item(user_id,item,-amount)
+
+def __jget(variable):
     jdict = json.loads(open(config.item_file).read())
     return jdict[variable]
 
-def jset(variable,value):
-    """Change the variable in the dynamic config to the given value.
-    
-    Keyword arguments:
-    variable -> the variable that should be changed.  
-    value -> the value the variable should be set to."""
-    
+def __jset(variable,value):
     with open(config.item_file, 'r') as f:
         jdict1 = json.load(f)
         jdict1[variable] = value
     with open(config.item_file, 'w') as f:
         json.dump(jdict1, f)
 
-def get_rewards(bonus=1):
+def __create_rewards(bonus=1):
     option_list = []
 
-    common = jget("common")
-    rare = jget("rare")
-    epic = jget("epic")
-    legendary = jget("legendary")
+    common = __jget("common")
+    rare = __jget("rare")
+    epic = __jget("epic")
+    legendary = __jget("legendary")
 
     # Normalize the numbers
     sum = common + rare + epic + legendary
@@ -39,7 +50,7 @@ def get_rewards(bonus=1):
     epic = epic/sum
     legendary = legendary/sum
 
-    reward_list = jget("rewards")
+    reward_list = __jget("rewards")
 
     for i in range(3):
         random_value = bonus*random.random()
@@ -63,24 +74,26 @@ def get_rewards(bonus=1):
     
     return option_list
 
-def import_reward(data_number):
-    for rarity_list in jget("rewards"):
+def __import_reward_info(data_number):
+    for rarity_list in __jget("rewards"):
         for item in rarity_list:
             if item["code"] == data_number:
                 return item
     print("ERROR: Reward {} not found in {}!".format(data_number,config.item_file))
     return {'name': 'NOT FOUND!', 'code': data_number, 'description': 'Come \'n\' get your NOT FOUND! Who doesn\'t want a NOT FOUND? (Please report this)' }
 
-def item_to_int(title):
-    for item in jget("items"):
-        if item["name"] == title:
-            return item["code"]
-    return None
+def __item_to_int(title):
+    try:
+        int(title)
+    except ValueError:
+        for item in __jget("items"):
+            if item["name"] == title:
+                return item["code"]
+        return None
+    else:
+        return int(title)
 
-def int_to_item(number):
-    for item in jget("items"):
+def __item_to_name(number):
+    for item in __jget("items"):
         if item["code"] == number:
             return item["name"]
-
-if  __name__ == '__main__':
-    print(jget("items"))
